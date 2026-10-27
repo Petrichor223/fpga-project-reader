@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FPGA 时钟树</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f8fafc;color:#17243a;font:14px/1.55 "Segoe UI","Microsoft YaHei",sans-serif}header{padding:16px 22px;background:white;border-bottom:1px solid #dbe3ed}h1{font-size:23px;margin:0 0 5px}#summary{color:#52637b;white-space:pre-wrap;overflow-wrap:anywhere}.tools{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:13px}input,select,button{font:inherit;padding:6px 10px;border:1px solid #acbcd0;border-radius:6px;background:white;color:inherit}input[type=search]{width:250px}button{cursor:pointer}label{display:flex;gap:6px;align-items:center}main{display:grid;grid-template-columns:minmax(0,1fr) 340px;height:calc(100vh - 192px);min-height:420px}#canvas{overflow:auto;padding:12px;border-right:1px solid #dbe3ed}#canvas svg{display:block;max-width:none}aside{overflow:auto;padding:16px;background:#fff}aside h2{font-size:17px;margin-top:0}#details{overflow-wrap:anywhere}#details p{margin:8px 0}#details pre{white-space:pre-wrap;font-size:12px}#results{max-height:140px;overflow:auto;display:flex;gap:6px;flex-wrap:wrap}#results:empty{display:none}#results button{font-size:12px;padding:3px 7px}#status{padding-top:8px;color:#52637b;font-size:12px}#boundary{font-size:12px;color:#78501b;background:#fff7e5;padding:7px 10px;margin-top:10px;overflow-wrap:anywhere}a{color:#235e9e}@media(max-width:850px){main{grid-template-columns:1fr;height:auto}#canvas{height:65vh}aside{border-top:1px solid #dbe3ed}header{padding:12px}}
+</style></head><body>
+<header><h1>FPGA 时钟树</h1><div id="summary"></div>
+<div class="tools"><input id="search" type="search" placeholder="搜索时钟、实例或频率" aria-label="搜索时钟">
+<label>关系<select id="relations"><option value="all">全部关系</option><option value="derivation">时钟派生</option><option value="distribution">实际分配</option></select></label>
+<label><input id="consumers" type="checkbox" checked>显示消费者</label>
+<button id="fit">适应窗口</button><button id="zoom-in" aria-label="放大">＋</button><button id="zoom-out" aria-label="缩小">－</button>
+</div><div id="status" aria-live="polite"></div><div id="results"></div></header>
+<main><div id="canvas"><!--CLOCK_SVG--></div><aside><h2>节点与证据</h2><div id="details">点击节点查看来源、频率性质与连接。点击连线查看关系和选择条件。</div><div id="boundary"></div></aside></main>
+<script>
+'use strict';
+const clockData=/*CLOCK_DATA*/null;
+const stateNames={confirmed:'已确认',inferred:'推断',unknown:'未知'};
+const basisNames={external_spec:'外部规格',ip_configuration:'IP 配置',constraint:'约束目标',tool_timing_model:'工具时序模型',simulation:'仿真激励',measurement:'测量',unknown:'未知'};
+const relationNames={derivation:'时钟派生',distribution:'实际分配',feedback:'反馈'};
+const kindNames={source:'外部源',clock:'时钟',pll_output:'PLL / MMCM 输出',buffer:'时钟缓冲',mux:'时钟选择',gate:'时钟门控',divider:'分频',recovered:'恢复时钟',consumer:'消费者',virtual:'虚拟时钟',unknown:'未知来源'};
+const nodes=new Map(clockData.nodes.map(n=>[n.id,n]));
+const edges=new Map(clockData.edges.map(e=>[e.id,e]));
+const svg=document.querySelector('#canvas svg');
+const nodeEls=new Map([...svg.querySelectorAll('.node')].map(e=>[e.dataset.node,e]));
+const edgeEls=new Map([...svg.querySelectorAll('.edge')].map(e=>[e.dataset.edge,e]));
+const details=document.getElementById('details');
+let zoom=1;
+function paragraph(text,parent=details){const p=document.createElement('p');p.textContent=text;parent.appendChild(p);return p}
+function evidence(ids){for(const id of [...new Set(ids)]){const e=clockData.evidence[id];paragraph(id+' · '+(e.kind==='missing'?'未知：'+e.reason+'；已检查 '+e.checked:e.file+' · '+e.locator));}}
+function selectNode(id,scroll=false){
+ const n=nodes.get(id);details.replaceChildren();
+ for(const [key,el]of nodeEls)el.classList.toggle('selected',key===id);
+ paragraph(n.label+' · '+kindNames[n.kind]+' · '+stateNames[n.status]);
+ if(n.instance)paragraph('实例：'+n.instance);
+ if(!n.frequencies?.length&&n.kind!=='consumer')paragraph('频率未知');
+ for(const f of n.frequencies||[]){paragraph((f.value_mhz===null?'频率未知':f.value_mhz+' MHz')+' · '+basisNames[f.basis]+' · '+stateNames[f.status]+(f.mode?' · 模式 '+f.mode:''));if(f.note)paragraph(f.note);evidence(f.evidence)}
+ if(n.notes)paragraph(n.notes);
+ paragraph('节点来源：');evidence(n.evidence);
+ for(const e of clockData.edges.filter(e=>e.source===id||e.target===id)){paragraph((nodes.get(e.source).label)+' → '+(nodes.get(e.target).label)+' · '+relationNames[e.kind]+' · '+stateNames[e.status]+(e.condition?' · 条件 '+e.condition:'')+(e.label?' · '+e.label:''));evidence(e.evidence)}
+ if(n.attributes){const d=document.createElement('details'),s=document.createElement('summary'),p=document.createElement('pre');s.textContent='原始查询属性';p.textContent=JSON.stringify(n.attributes,null,2);d.append(s,p);details.appendChild(d)}
+ if(scroll){document.getElementById('consumers').checked=true;filter();nodeEls.get(id)?.scrollIntoView({block:'center',inline:'center',behavior:'smooth'});}
+}
+function selectEdge(id){const e=edges.get(id);details.replaceChildren();paragraph(nodes.get(e.source).label+' → '+nodes.get(e.target).label);paragraph(relationNames[e.kind]+' · '+stateNames[e.status]);if(e.label)paragraph(e.label);if(e.condition)paragraph('条件：'+e.condition);evidence(e.evidence)}
+function filter(){
+ const consumers=document.getElementById('consumers').checked,kind=document.getElementById('relations').value;
+ for(const [id,el]of nodeEls)el.style.display=!consumers&&nodes.get(id).kind==='consumer'?'none':'';
+ for(const [id,el]of edgeEls){const e=edges.get(id);el.style.display=(kind!=='all'&&e.kind!==kind)||nodeEls.get(e.source).style.display==='none'||nodeEls.get(e.target).style.display==='none'?'none':'';}
+ const hidden=[...nodeEls.values()].filter(e=>e.style.display==='none').length;
+ document.getElementById('status').textContent=clockData.nodes.length+' 个已收录节点 · '+clockData.edges.length+' 条已收录关系 · 隐藏 '+hidden+' 个消费者；未收录范围见右侧说明。';
+}
+function resize(){svg.style.width=(Number(svg.getAttribute('width'))*zoom)+'px';svg.style.height=(Number(svg.getAttribute('height'))*zoom)+'px'}
+function fit(){zoom=Math.min(1,(document.getElementById('canvas').clientWidth-25)/Number(svg.getAttribute('width')));resize()}
+document.getElementById('summary').textContent=clockData.config.id+' · '+clockData.config.vendor+' · '+clockData.config.top+' · revision '+clockData.config.revision+' · '+clockData.analysis.stage+'\n'+clockData.analysis.scope;
+document.getElementById('boundary').textContent='输入匹配性：'+clockData.analysis.identity_match+'。'+clockData.analysis.limitations.join('；')+'。图形与结构检查不等于 CDC 或硬件验证。';
+svg.addEventListener('click',event=>{const n=event.target.closest('.node');if(n)selectNode(n.dataset.node);else{const e=event.target.closest('.edge');if(e)selectEdge(e.dataset.edge)}});
+svg.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){const n=event.target.closest('.node');if(n){event.preventDefault();selectNode(n.dataset.node)}}});
+document.getElementById('relations').addEventListener('change',filter);
+document.getElementById('consumers').addEventListener('change',filter);
+document.getElementById('fit').addEventListener('click',fit);
+document.getElementById('zoom-in').addEventListener('click',()=>{zoom=Math.min(3,zoom*1.25);resize()});
+document.getElementById('zoom-out').addEventListener('click',()=>{zoom=Math.max(.03,zoom/1.25);resize()});
+document.getElementById('search').addEventListener('input',event=>{const q=event.target.value.toLocaleLowerCase(),results=document.getElementById('results');results.replaceChildren();for(const [id,n]of nodes){const found=JSON.stringify(n).toLocaleLowerCase().includes(q);nodeEls.get(id).classList.toggle('dim',Boolean(q)&&!found);if(q&&found){const b=document.createElement('button');b.textContent=n.label;b.addEventListener('click',()=>selectNode(id,true));results.appendChild(b)}}});
+filter();fit();window.__clockTreeReady=true;
+</script></body></html>

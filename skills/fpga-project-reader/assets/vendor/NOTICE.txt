@@ -1,0 +1,9 @@
+Offline runtime dependencies, pinned for FPGA Project Reader.
+Unmodified distributions; wrapper, HTML UI and model adapter are separate resources.
+
+d3 6.7.0 — https://github.com/d3/d3/tree/v6.7.0 — D3-LICENSE.txt
+elkjs 0.8.2 — https://github.com/kieler/elkjs/tree/v0.8.2 — ELK-LICENSE.txt
+d3-hwschematic 0.1.6 — https://github.com/Nic30/d3-hwschematic — HWSCHEMATIC-LICENSE.txt
+The upstream package metadata says EPL-1.0; its included LICENSE is EPL-2.0.
+The complete upstream license texts are preserved with these distributions.
+No CDN, telemetry, server or dependency installation is used by the generated viewer.

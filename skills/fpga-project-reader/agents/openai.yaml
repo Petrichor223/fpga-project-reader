@@ -1,0 +1,4 @@
+interface:
+  display_name: "FPGA Project Reader"
+  short_description: "快速阅读 FPGA 工程并附证据，支持详细报告、离线交互框图及 Vivado/Quartus 时钟树"
+  default_prompt: "请使用 $fpga-project-reader 阅读指定 FPGA 工程，默认快速概述用途、配置、主要模块、时钟复位与测试并附来源；按需生成可展开框图或 Vivado/Quartus 时钟树，提供离线 HTML 和证据，明确要求详细模式时再完整分析。"
