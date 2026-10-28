@@ -58,6 +58,8 @@ C:\Users\<你的用户名>\.agents\skills\fpga-project-reader\SKILL.md
 
 安装后开启下一次对话并使用 `$fpga-project-reader`。如果列表仍未更新，重启 Codex。本仓库的默认分支为 `master`。
 
+如果默认下载因本机 Python 的证书信任配置而失败，可让 Codex 使用 `$skill-installer` 的 Git 安装方式（`--method git`），或检查并修复本机的证书信任配置。
+
 ### 准备工程材料
 
 优先提供完整工程目录，包括工程文件、构建脚本、RTL、IP 配置、约束及测试入口。常见材料有：

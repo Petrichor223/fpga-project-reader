@@ -1,0 +1,2 @@
+# Keep skill files, especially bundled third-party assets, byte-for-byte intact.
+skills/fpga-project-reader/** -text
